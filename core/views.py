@@ -1,0 +1,8 @@
+from django.shortcuts import render
+from . import views
+# Create your views here.
+
+def index(request,room_name):
+    return render(request,"index.html",{'room_name':room_name})
+
+

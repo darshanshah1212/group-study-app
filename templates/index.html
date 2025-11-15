@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Group Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #chat {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+        }
+        .message-header {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+        .message-content {
+            margin: 0;
+            color: #333;
+        }
+        .message-time {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 2px;
+        }
+        input[type="text"] {
+            width: 70%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to Room: {{ room_name }}</h1>
+
+    <div id="chat">
+        <div class="loading">Connecting and loading messages...</div>
+    </div>
+
+    <div>
+        <input type="text" id="msgInput" placeholder="Enter a message for chatting" 
+               onkeypress="if(event.key==='Enter') sendMsg()">
+        <button onclick="sendMsg()">Send</button>
+    </div>
+
+    <script>
+        const roomName = "{{ room_name }}";
+        const socket = new WebSocket('ws://' + window.location.host + '/ws/stdy_grp/' + roomName + '/');
+        const chatBox = document.getElementById("chat");
+
+        let isLoadingMessages = true;
+
+        socket.onopen = function() {
+            console.log("Connected to room", roomName);
+            // Remove loading message after connection
+            setTimeout(() => {
+                if (isLoadingMessages) {
+                    chatBox.innerHTML = "<div class='loading'>No messages yet. Start the conversation!</div>";
+                    isLoadingMessages = false;
+                }
+            }, 1000);
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            displayMessage(data.user, data.message, data.timestamp);
+            
+            // If this is the last historical message, remove loading indicator
+            if (isLoadingMessages) {
+                isLoadingMessages = false;
+                const loadingDiv = chatBox.querySelector('.loading');
+                if (loadingDiv) {
+                    loadingDiv.remove();
+                }
+            }
+        };
+
+        socket.onclose = function(event) {
+            console.log('Connection closed');
+            chatBox.innerHTML += '<div class="loading">Connection lost. Refresh to reconnect.</div>';
+        };
+
+        socket.onerror = function(error) {
+            console.log('WebSocket error:', error);
+            chatBox.innerHTML += '<div class="loading">Connection error. Refresh to try again.</div>';
+        };
+
+        function displayMessage(user, message, timestamp) {
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "message";
+            
+            const timeStr = timestamp ? new Date(timestamp).toLocaleTimeString() : '';
+            
+            msgDiv.innerHTML = `
+                <div class="message-header">${user}</div>
+                <div class="message-content">${message}</div>
+                ${timeStr ? `<div class="message-time">${timeStr}</div>` : ''}
+            `;
+            
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to bottom
+        }
+
+        function sendMsg() {
+            const msgInput = document.getElementById("msgInput");
+            const msg = msgInput.value.trim();
+            
+            if (msg && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({"message": msg}));
+                msgInput.value = "";
+            }
+        }
+
+        // Allow Enter key to send message
+        document.getElementById("msgInput").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                sendMsg();
+            }
+        });
+    </script>
+</body>
+</html>
